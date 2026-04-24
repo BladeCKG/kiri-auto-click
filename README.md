@@ -25,6 +25,14 @@ powershell -ExecutionPolicy Bypass -File .\install_native_host.ps1 -ExtensionId 
 
 4. Reload the extension in `chrome://extensions`.
 
+## Uninstall
+
+To remove the native host registration and local build artifacts, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall_native_host.ps1
+```
+
 ## How detection works
 
 The native helper watches for new or updated `*.log` files under:
