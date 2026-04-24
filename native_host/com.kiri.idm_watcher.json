@@ -1,0 +1,9 @@
+{
+    "path":  "C:\\Users\\aaa\\Documents\\dev\\kiri-auto-click\\native_host\\dist\\kiri_idm_host.exe",
+    "description":  "Kiri IDM watcher",
+    "name":  "com.kiri.idm_watcher",
+    "allowed_origins":  [
+                            "chrome-extension://dgnpepijnpegmcbckcfanpkbdlioamaf/"
+                        ],
+    "type":  "stdio"
+}
