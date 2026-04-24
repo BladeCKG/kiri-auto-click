@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Kiri Auto Click",
+  "version": "1.0.0",
+  "description": "Clicks matching download buttons once on supported domains after the page loads.",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://thenkiri.com/*",
+        "*://*.thenkiri.com/*",
+        "*://downloadwella.com/*",
+        "*://*.downloadwella.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
