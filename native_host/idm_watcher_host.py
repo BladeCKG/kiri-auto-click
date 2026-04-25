@@ -87,22 +87,45 @@ def get_idm_temp_root():
     return Path(temp_dir)
 
 
-def get_idm_root():
+def get_idm_candidate_roots():
+    roots = []
+    user_name = os.environ.get("USERNAME", "").strip()
+
+    def add_candidate(base_root):
+        if not base_root.exists():
+            return
+
+        user_root = base_root / user_name if user_name else None
+        if user_root and user_root.exists():
+            if user_root not in roots:
+                roots.append(user_root)
+            return
+
+        if base_root not in roots:
+            roots.append(base_root)
+
+    temp_root = get_idm_temp_root()
+    temp_dwnldata = temp_root / "DwnlData"
+    add_candidate(temp_dwnldata)
+
     configured = read_download_manager_value("AppDataIDMFolder")
     if configured:
-        root = Path(configured) / "DwnlData"
-        if root.exists():
-            return root
+        configured_root = Path(configured) / "DwnlData"
+        add_candidate(configured_root)
 
     configured = os.environ.get("APPDATA")
-    if not configured:
-        raise RuntimeError("APPDATA is not available")
+    if configured:
+        fallback_root = Path(configured) / "IDM" / "DwnlData"
+        add_candidate(fallback_root)
 
-    root = Path(configured) / "IDM" / "DwnlData"
-    if not root.exists():
-        raise RuntimeError(f"IDM DwnlData folder was not found: {root}")
+    if not roots:
+        raise RuntimeError("IDM DwnlData folder was not found in temp path or app data")
 
-    return root
+    return roots
+
+
+def get_idm_root():
+    return get_idm_candidate_roots()[0]
 
 
 def snapshot_logs(root):
@@ -171,8 +194,7 @@ def matches_request(details, page_url, element_url, expected_file_name, expected
 
 
 def watch_for_download(message):
-    root = get_idm_root()
-    _temp_root = get_idm_temp_root()
+    roots = get_idm_candidate_roots()
     page_url = normalize_url(message.get("page_url"))
     element_url = normalize_url(message.get("element_url"))
     expected_file_name = message.get("expected_file_name") or get_filename_from_url(element_url)
@@ -181,10 +203,14 @@ def watch_for_download(message):
     timeout_ms = int(message.get("timeout_ms") or DEFAULT_TIMEOUT_MS)
     deadline = time.time() + (timeout_ms / 1000)
     min_mtime_ns = max(0, (triggered_at - 1500) * 1_000_000)
-    known_logs = snapshot_logs(root)
+    known_logs = {}
+    for root in roots:
+        known_logs.update(snapshot_logs(root))
 
     while time.time() < deadline:
-        current_logs = snapshot_logs(root)
+        current_logs = {}
+        for root in roots:
+            current_logs.update(snapshot_logs(root))
         for path_text, state in current_logs.items():
             previous_state = known_logs.get(path_text)
             if previous_state == state:
