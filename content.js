@@ -18,6 +18,7 @@
   const clickedLabels = new Set();
   const clickedSubsourceLinks = new Set();
   const openedSubsourceUrls = new Set();
+  let subsourceEnglishOpened = false;
   let watcherStarted = false;
   let observerStarted = false;
   let routeWatcherStarted = false;
@@ -271,6 +272,7 @@
     clickedLabels.clear();
     clickedSubsourceLinks.clear();
     openedSubsourceUrls.clear();
+    subsourceEnglishOpened = false;
     watcherStarted = false;
     subsourceScrollPromise = null;
     document.querySelectorAll(`[${CLICK_MARK_ATTR}="1"]`).forEach((element) => {
@@ -286,6 +288,9 @@
 
     currentRouteKey = nextRouteKey;
     resetPageState();
+    window.requestAnimationFrame(() => {
+      clickNextTarget();
+    });
   }
 
   function startRouteWatcher() {
@@ -313,79 +318,6 @@
     window.setInterval(handleRouteChange, 500);
   }
 
-  function clickSubsourceTableLinks() {
-    if (!isSubsourceHost() || isSubtitleDetailPage() || isSubtitlesListingPage()) {
-      return false;
-    }
-
-    const rows = document.querySelectorAll("tbody > tr");
-    let clickedAny = false;
-    let englishClicked = false;
-
-    for (const row of rows) {
-      if (!(row instanceof HTMLTableRowElement)) {
-        continue;
-      }
-
-      const secondCell = row.querySelector("td:nth-of-type(2)");
-      if (!(secondCell instanceof HTMLTableCellElement)) {
-        continue;
-      }
-
-      const cellLabel = normalizeText(secondCell.innerText || secondCell.textContent);
-      const wantsEnglish = cellLabel.includes("english");
-      const wantsKorean = cellLabel.includes("korean");
-      if (!wantsEnglish && !wantsKorean) {
-        continue;
-      }
-
-      const links = secondCell.querySelectorAll("a");
-      for (const link of links) {
-        if (!(link instanceof HTMLElement) || !isClickable(link)) {
-          continue;
-        }
-
-        const href = getElementUrl(link);
-        if (!href) {
-          continue;
-        }
-
-        if (!hrefMatchesCurrentSubsourceRoute(href)) {
-          continue;
-        }
-
-        const label = wantsKorean ? "korean" : "english";
-        const key = `${label}|${href}`;
-
-        if (link.getAttribute(CLICK_MARK_ATTR) === "1" || clickedSubsourceLinks.has(key)) {
-          if (label === "english") {
-            englishClicked = true;
-          }
-          continue;
-        }
-
-        if (label === "korean") {
-          clickedSubsourceLinks.add(key);
-          link.setAttribute(CLICK_MARK_ATTR, "1");
-          openUrlInNewTab(href);
-          clickedAny = true;
-          break;
-        }
-
-        if (label === "english" && !englishClicked) {
-          clickedSubsourceLinks.add(key);
-          link.setAttribute(CLICK_MARK_ATTR, "1");
-          openUrlInNewTab(href);
-          clickedAny = true;
-          englishClicked = true;
-          break;
-        }
-      }
-    }
-
-    return clickedAny;
-  }
-
   async function scrollSubsourceListingToBottom() {
     if (!isSubsourceHost() || !isSubtitlesListingPage()) {
       return;
@@ -399,6 +331,8 @@
         document.documentElement.scrollHeight,
         document.body ? document.body.scrollHeight : 0
       );
+      const maxScrollableY = Math.max(0, currentHeight - window.innerHeight);
+      const alreadyAtBottom = window.scrollY >= maxScrollableY;
 
       window.scrollTo({
         top: currentHeight,
@@ -414,8 +348,11 @@
         document.body ? document.body.scrollHeight : 0
       );
 
-      const atBottom = Math.ceil(window.innerHeight + window.scrollY) >= nextHeight;
-      if (nextHeight === previousHeight && atBottom) {
+      const nextMaxScrollableY = Math.max(0, nextHeight - window.innerHeight);
+      const atBottom = window.scrollY >= nextMaxScrollableY || Math.ceil(window.innerHeight + window.scrollY) >= nextHeight;
+      const noAdditionalGrowth = nextHeight <= currentHeight;
+
+      if ((alreadyAtBottom && noAdditionalGrowth) || (nextHeight === previousHeight && atBottom)) {
         stablePasses += 1;
       } else {
         stablePasses = 0;
@@ -431,16 +368,20 @@
     }
 
     if (!subsourceScrollPromise) {
+      const routeKeyAtStart = currentRouteKey;
       subsourceScrollPromise = scrollSubsourceListingToBottom()
         .then(() => {
-          clickSubsourceTableLinksFromListing();
+          if (routeKeyAtStart !== currentRouteKey) {
+            return false;
+          }
+          return clickSubsourceTableLinksFromListing();
         })
         .finally(() => {
           subsourceScrollPromise = null;
         });
     }
 
-    return true;
+    return !!subsourceScrollPromise;
   }
 
   function clickSubsourceTableLinksFromListing() {
@@ -448,16 +389,16 @@
       return false;
     }
 
-    const rows = document.querySelectorAll("tbody > tr");
+    const rows = document.querySelectorAll("table tr, tbody tr, tr");
     let clickedAny = false;
-    let englishClicked = false;
 
     for (const row of rows) {
       if (!(row instanceof HTMLTableRowElement)) {
         continue;
       }
 
-      const secondCell = row.querySelector("td:nth-of-type(2)");
+      const cells = row.querySelectorAll("td");
+      const secondCell = cells.length >= 2 ? cells[1] : null;
       if (!(secondCell instanceof HTMLTableCellElement)) {
         continue;
       }
@@ -480,17 +421,10 @@
           continue;
         }
 
-        if (!hrefMatchesCurrentSubsourceRoute(href)) {
-          continue;
-        }
-
         const label = wantsKorean ? "korean" : "english";
         const key = `${label}|${href}`;
 
         if (link.getAttribute(CLICK_MARK_ATTR) === "1" || clickedSubsourceLinks.has(key)) {
-          if (label === "english") {
-            englishClicked = true;
-          }
           continue;
         }
 
@@ -502,12 +436,12 @@
           break;
         }
 
-        if (label === "english" && !englishClicked) {
+        if (label === "english" && !subsourceEnglishOpened) {
           clickedSubsourceLinks.add(key);
           link.setAttribute(CLICK_MARK_ATTR, "1");
           openUrlInNewTab(href);
           clickedAny = true;
-          englishClicked = true;
+          subsourceEnglishOpened = true;
           break;
         }
       }
@@ -517,12 +451,12 @@
   }
 
   function clickNextTarget() {
-    if (startSubsourceListingFlow()) {
-      return true;
-    }
-
-    if (clickSubsourceTableLinks()) {
-      return true;
+    if (isSubsourceHost() && isSubtitlesListingPage()) {
+      const clickedFromListing = clickSubsourceTableLinksFromListing();
+      startSubsourceListingFlow();
+      if (clickedFromListing) {
+        return true;
+      }
     }
 
     const config = getDomainConfig();
@@ -574,12 +508,23 @@
       attributeFilter: ["value", "aria-label", "title", "href", "data-href", "data-url"]
     });
 
-    window.setTimeout(() => {
-      observer.disconnect();
-    }, WATCH_TIMEOUT_MS);
+    if (!isSubsourceHost()) {
+      window.setTimeout(() => {
+        observer.disconnect();
+      }, WATCH_TIMEOUT_MS);
+    }
   }
 
   startRouteWatcher();
+  window.addEventListener("pageshow", () => {
+    clickNextTarget();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      handleRouteChange();
+      clickNextTarget();
+    }
+  });
   if (document.readyState === "complete" || document.readyState === "interactive") {
     startWatching();
   } else {
