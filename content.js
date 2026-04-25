@@ -22,6 +22,7 @@
   let observerStarted = false;
   let routeWatcherStarted = false;
   let currentRouteKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  let subsourceScrollPromise = null;
 
   function getDomainConfig() {
     const host = window.location.hostname.toLowerCase();
@@ -133,6 +134,15 @@
     try {
       const parsed = new URL(window.location.href);
       return parsed.pathname.split("/").filter(Boolean).includes("subtitle");
+    } catch {
+      return false;
+    }
+  }
+
+  function isSubtitlesListingPage() {
+    try {
+      const parsed = new URL(window.location.href);
+      return parsed.pathname.toLowerCase().startsWith("/subtitles/");
     } catch {
       return false;
     }
@@ -262,6 +272,7 @@
     clickedSubsourceLinks.clear();
     openedSubsourceUrls.clear();
     watcherStarted = false;
+    subsourceScrollPromise = null;
     document.querySelectorAll(`[${CLICK_MARK_ATTR}="1"]`).forEach((element) => {
       element.removeAttribute(CLICK_MARK_ATTR);
     });
@@ -303,7 +314,137 @@
   }
 
   function clickSubsourceTableLinks() {
-    if (!isSubsourceHost() || isSubtitleDetailPage()) {
+    if (!isSubsourceHost() || isSubtitleDetailPage() || isSubtitlesListingPage()) {
+      return false;
+    }
+
+    const rows = document.querySelectorAll("tbody > tr");
+    let clickedAny = false;
+    let englishClicked = false;
+
+    for (const row of rows) {
+      if (!(row instanceof HTMLTableRowElement)) {
+        continue;
+      }
+
+      const secondCell = row.querySelector("td:nth-of-type(2)");
+      if (!(secondCell instanceof HTMLTableCellElement)) {
+        continue;
+      }
+
+      const cellLabel = normalizeText(secondCell.innerText || secondCell.textContent);
+      const wantsEnglish = cellLabel.includes("english");
+      const wantsKorean = cellLabel.includes("korean");
+      if (!wantsEnglish && !wantsKorean) {
+        continue;
+      }
+
+      const links = secondCell.querySelectorAll("a");
+      for (const link of links) {
+        if (!(link instanceof HTMLElement) || !isClickable(link)) {
+          continue;
+        }
+
+        const href = getElementUrl(link);
+        if (!href) {
+          continue;
+        }
+
+        if (!hrefMatchesCurrentSubsourceRoute(href)) {
+          continue;
+        }
+
+        const label = wantsKorean ? "korean" : "english";
+        const key = `${label}|${href}`;
+
+        if (link.getAttribute(CLICK_MARK_ATTR) === "1" || clickedSubsourceLinks.has(key)) {
+          if (label === "english") {
+            englishClicked = true;
+          }
+          continue;
+        }
+
+        if (label === "korean") {
+          clickedSubsourceLinks.add(key);
+          link.setAttribute(CLICK_MARK_ATTR, "1");
+          openUrlInNewTab(href);
+          clickedAny = true;
+          break;
+        }
+
+        if (label === "english" && !englishClicked) {
+          clickedSubsourceLinks.add(key);
+          link.setAttribute(CLICK_MARK_ATTR, "1");
+          openUrlInNewTab(href);
+          clickedAny = true;
+          englishClicked = true;
+          break;
+        }
+      }
+    }
+
+    return clickedAny;
+  }
+
+  async function scrollSubsourceListingToBottom() {
+    if (!isSubsourceHost() || !isSubtitlesListingPage()) {
+      return;
+    }
+
+    let stablePasses = 0;
+    let previousHeight = -1;
+
+    while (stablePasses < 4) {
+      const currentHeight = Math.max(
+        document.documentElement.scrollHeight,
+        document.body ? document.body.scrollHeight : 0
+      );
+
+      window.scrollTo({
+        top: currentHeight,
+        behavior: "auto"
+      });
+
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 400);
+      });
+
+      const nextHeight = Math.max(
+        document.documentElement.scrollHeight,
+        document.body ? document.body.scrollHeight : 0
+      );
+
+      const atBottom = Math.ceil(window.innerHeight + window.scrollY) >= nextHeight;
+      if (nextHeight === previousHeight && atBottom) {
+        stablePasses += 1;
+      } else {
+        stablePasses = 0;
+      }
+
+      previousHeight = nextHeight;
+    }
+  }
+
+  function startSubsourceListingFlow() {
+    if (!isSubsourceHost() || !isSubtitlesListingPage()) {
+      return false;
+    }
+
+    if (!subsourceScrollPromise) {
+      subsourceScrollPromise = scrollSubsourceListingToBottom()
+        .then(() => {
+          clickSubsourceTableLinksFromListing();
+        })
+        .finally(() => {
+          subsourceScrollPromise = null;
+        });
+    }
+
+    return true;
+  }
+
+  function clickSubsourceTableLinksFromListing() {
+    if (!isSubsourceHost() || !isSubtitlesListingPage()) {
       return false;
     }
 
@@ -376,6 +517,10 @@
   }
 
   function clickNextTarget() {
+    if (startSubsourceListingFlow()) {
+      return true;
+    }
+
     if (clickSubsourceTableLinks()) {
       return true;
     }
