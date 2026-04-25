@@ -401,6 +401,44 @@
     return !!subsourceScrollPromise;
   }
 
+  function clickSubsourceDetailTarget() {
+    if (!isSubsourceHost() || !isSubtitleDetailPage()) {
+      return false;
+    }
+
+    const candidates = document.querySelectorAll(
+      "button, a, input[type='button'], input[type='submit'], [role='button']"
+    );
+
+    for (const targetLabel of ["download english subtitle", "download korean subtitle"]) {
+      if (clickedLabels.has(targetLabel)) {
+        continue;
+      }
+
+      for (const element of candidates) {
+        if (!isClickable(element)) {
+          continue;
+        }
+
+        const label = getElementLabel(element);
+        if (!label.includes(targetLabel)) {
+          continue;
+        }
+
+        clickedLabels.add(targetLabel);
+        notifyStartDownload({
+          element,
+          label,
+          targetLabel
+        });
+        element.click();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function clickSubsourceTableLinksFromListing() {
     if (!isSubsourceHost() || !isSubtitlesListingPage()) {
       return false;
@@ -478,6 +516,10 @@
       if (clickedFromListing) {
         return true;
       }
+    }
+
+    if (clickSubsourceDetailTarget()) {
+      return true;
     }
 
     const config = getDomainConfig();
