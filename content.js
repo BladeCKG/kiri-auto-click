@@ -138,6 +138,36 @@
     }
   }
 
+  function getCurrentSubtitlesSlug() {
+    try {
+      const parsed = new URL(window.location.href);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const subtitlesIndex = parts.indexOf("subtitles");
+      if (subtitlesIndex === -1 || subtitlesIndex + 1 >= parts.length) {
+        return null;
+      }
+
+      return decodeURIComponent(parts[subtitlesIndex + 1]).toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
+  function hrefMatchesCurrentSubsourceRoute(href) {
+    const currentSlug = getCurrentSubtitlesSlug();
+    if (!currentSlug) {
+      return true;
+    }
+
+    try {
+      const parsed = new URL(href);
+      const path = parsed.pathname.toLowerCase();
+      return path.includes(`/subtitle/${currentSlug}/`) || path.includes(`/subtitles/${currentSlug}`);
+    } catch {
+      return false;
+    }
+  }
+
   function isClickable(element) {
     if (!(element instanceof HTMLElement)) {
       return false;
@@ -245,9 +275,6 @@
 
     currentRouteKey = nextRouteKey;
     resetPageState();
-    window.setTimeout(() => {
-      clickNextTarget();
-    }, 50);
   }
 
   function startRouteWatcher() {
@@ -309,6 +336,10 @@
 
         const href = getElementUrl(link);
         if (!href) {
+          continue;
+        }
+
+        if (!hrefMatchesCurrentSubsourceRoute(href)) {
           continue;
         }
 
