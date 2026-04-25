@@ -3,6 +3,7 @@ import os
 import struct
 import sys
 import time
+import winreg
 from pathlib import Path
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -65,7 +66,34 @@ def get_expected_dir_prefix(file_name):
     return file_name[:20]
 
 
+def read_download_manager_value(name):
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\DownloadManager") as key:
+            value, _value_type = winreg.QueryValueEx(key, name)
+            return value
+    except OSError:
+        return ""
+
+
+def get_idm_temp_root():
+    configured = read_download_manager_value("TempPath")
+    if configured:
+        return Path(configured)
+
+    temp_dir = os.environ.get("TEMP") or os.environ.get("TMP")
+    if not temp_dir:
+        raise RuntimeError("IDM TempPath and TEMP/TMP are unavailable")
+
+    return Path(temp_dir)
+
+
 def get_idm_root():
+    configured = read_download_manager_value("AppDataIDMFolder")
+    if configured:
+        root = Path(configured) / "DwnlData"
+        if root.exists():
+            return root
+
     configured = os.environ.get("APPDATA")
     if not configured:
         raise RuntimeError("APPDATA is not available")
@@ -144,6 +172,7 @@ def matches_request(details, page_url, element_url, expected_file_name, expected
 
 def watch_for_download(message):
     root = get_idm_root()
+    _temp_root = get_idm_temp_root()
     page_url = normalize_url(message.get("page_url"))
     element_url = normalize_url(message.get("element_url"))
     expected_file_name = message.get("expected_file_name") or get_filename_from_url(element_url)

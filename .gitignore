@@ -1,0 +1,7 @@
+native_host/dist/
+native_host/build/
+native_host/.venv/
+native_host/spec/
+native_host/com.kiri.idm_watcher.json
+__pycache__/
+native_host/__pycache__/
