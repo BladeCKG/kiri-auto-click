@@ -17,6 +17,8 @@
         "*://*.thenkiri.com/*",
         "*://downloadwella.com/*",
         "*://*.downloadwella.com/*",
+        "*://wetafiles.com/*",
+        "*://*.wetafiles.com/*",
         "*://subsource.net/*",
         "*://*.subsource.net/*"
       ],
@@ -31,6 +33,8 @@
     "*://*.thenkiri.com/*",
     "*://downloadwella.com/*",
     "*://*.downloadwella.com/*",
+    "*://wetafiles.com/*",
+    "*://*.wetafiles.com/*",
     "*://subsource.net/*",
     "*://*.subsource.net/*"
   ]

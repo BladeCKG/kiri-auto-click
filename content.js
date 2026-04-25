@@ -8,7 +8,7 @@
       tokenFromSubtitlePath: true
     },
     {
-      domains: ["thenkiri.com", "downloadwella.com"],
+      domains: ["thenkiri.com", "downloadwella.com", "wetafiles.com"],
       labels: ["download movie", "create download link", "start download"],
       watchOnClick: false,
       tokenFromSubtitlePath: false
