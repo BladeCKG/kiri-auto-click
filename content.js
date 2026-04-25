@@ -1,7 +1,8 @@
 (() => {
+  const CLICK_MARK_ATTR = "data-kiri-auto-clicked";
   const DOMAIN_TARGETS = [
     {
-      domains: ["source.net", "subsource.net"],
+      domains: ["subsource.net"],
       labels: ["download english subtitle", "download korean subtitle"],
       watchOnClick: true,
       tokenFromSubtitlePath: true
@@ -15,6 +16,7 @@
   ];
   const WATCH_TIMEOUT_MS = 90000;
   const clickedLabels = new Set();
+  const clickedSubsourceLinks = new Set();
   let watcherStarted = false;
 
   function getDomainConfig() {
@@ -118,6 +120,20 @@
     return typeof fileName === "string" && /\.[a-z0-9]{2,5}$/i.test(fileName);
   }
 
+  function isSubsourceHost() {
+    const host = window.location.hostname.toLowerCase();
+    return host === "subsource.net" || host.endsWith(".subsource.net");
+  }
+
+  function isSubtitleDetailPage() {
+    try {
+      const parsed = new URL(window.location.href);
+      return parsed.pathname.split("/").filter(Boolean).includes("subtitle");
+    } catch {
+      return false;
+    }
+  }
+
   function isClickable(element) {
     if (!(element instanceof HTMLElement)) {
       return false;
@@ -191,7 +207,91 @@
     });
   }
 
+  function openUrlInNewTab(url) {
+    if (!url) {
+      return;
+    }
+
+    chrome.runtime.sendMessage({
+      type: "open-new-tab",
+      url
+    });
+  }
+
+  function clickSubsourceTableLinks() {
+    if (!isSubsourceHost() || isSubtitleDetailPage()) {
+      return false;
+    }
+
+    const rows = document.querySelectorAll("tbody > tr");
+    let clickedAny = false;
+    let englishClicked = false;
+
+    for (const row of rows) {
+      if (!(row instanceof HTMLTableRowElement)) {
+        continue;
+      }
+
+      const secondCell = row.querySelector("td:nth-of-type(2)");
+      if (!(secondCell instanceof HTMLTableCellElement)) {
+        continue;
+      }
+
+      const cellLabel = normalizeText(secondCell.innerText || secondCell.textContent);
+      const wantsEnglish = cellLabel.includes("english");
+      const wantsKorean = cellLabel.includes("korean");
+      if (!wantsEnglish && !wantsKorean) {
+        continue;
+      }
+
+      const links = secondCell.querySelectorAll("a");
+      for (const link of links) {
+        if (!(link instanceof HTMLElement) || !isClickable(link)) {
+          continue;
+        }
+
+        const href = getElementUrl(link);
+        if (!href) {
+          continue;
+        }
+
+        const label = wantsKorean ? "korean" : "english";
+        const key = `${label}|${href}`;
+
+        if (link.getAttribute(CLICK_MARK_ATTR) === "1" || clickedSubsourceLinks.has(key)) {
+          if (label === "english") {
+            englishClicked = true;
+          }
+          continue;
+        }
+
+        if (label === "korean") {
+          clickedSubsourceLinks.add(key);
+          link.setAttribute(CLICK_MARK_ATTR, "1");
+          openUrlInNewTab(href);
+          clickedAny = true;
+          break;
+        }
+
+        if (label === "english" && !englishClicked) {
+          clickedSubsourceLinks.add(key);
+          link.setAttribute(CLICK_MARK_ATTR, "1");
+          openUrlInNewTab(href);
+          clickedAny = true;
+          englishClicked = true;
+          break;
+        }
+      }
+    }
+
+    return clickedAny;
+  }
+
   function clickNextTarget() {
+    if (clickSubsourceTableLinks()) {
+      return true;
+    }
+
     const config = getDomainConfig();
     if (!config) {
       return false;

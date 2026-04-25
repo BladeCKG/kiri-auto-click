@@ -29,6 +29,18 @@ async function watchIdmStart(tabId, payload) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id;
 
+  if (message && message.type === "open-new-tab" && typeof message.url === "string") {
+    chrome.tabs.create({ url: message.url })
+      .then(() => {
+        sendResponse({ ok: true });
+      })
+      .catch((error) => {
+        console.error("Open new tab failed", error);
+        sendResponse({ ok: false });
+      });
+    return true;
+  }
+
   if (!tabId || !message || message.type !== "watch-start-download") {
     return;
   }
