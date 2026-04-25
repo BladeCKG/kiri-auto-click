@@ -164,16 +164,33 @@
     }
   }
 
-  function hrefMatchesCurrentSubsourceRoute(href) {
+  function getCurrentSubtitlesSlugCandidates() {
     const currentSlug = getCurrentSubtitlesSlug();
     if (!currentSlug) {
+      return [];
+    }
+
+    const candidates = new Set([currentSlug]);
+    const trimmedSuffix = currentSlug.replace(/-\d+$/, "");
+    if (trimmedSuffix) {
+      candidates.add(trimmedSuffix);
+    }
+
+    return Array.from(candidates);
+  }
+
+  function hrefMatchesCurrentSubsourceRoute(href) {
+    const candidates = getCurrentSubtitlesSlugCandidates();
+    if (candidates.length === 0) {
       return true;
     }
 
     try {
       const parsed = new URL(href);
       const path = parsed.pathname.toLowerCase();
-      return path.includes(`/subtitle/${currentSlug}/`) || path.includes(`/subtitles/${currentSlug}`);
+      return candidates.some((candidate) => {
+        return path.includes(`/subtitle/${candidate}/`) || path.includes(`/subtitles/${candidate}`);
+      });
     } catch {
       return false;
     }
@@ -418,6 +435,10 @@
 
         const href = getElementUrl(link);
         if (!href) {
+          continue;
+        }
+
+        if (!hrefMatchesCurrentSubsourceRoute(href)) {
           continue;
         }
 
