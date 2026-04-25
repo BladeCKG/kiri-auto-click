@@ -66,6 +66,30 @@ def get_expected_dir_prefix(file_name):
     return file_name[:20]
 
 
+def get_expected_dir_prefix_candidates(file_name):
+    if not file_name:
+        return []
+
+    candidates = []
+
+    def add_candidate(value):
+        if not value:
+            return
+        prefix = value[:20].lower()
+        if prefix and prefix not in candidates:
+            candidates.append(prefix)
+
+    add_candidate(file_name)
+    add_candidate(file_name.replace("_", "-20"))
+    add_candidate(file_name.replace(" ", "-20"))
+    add_candidate(file_name.replace("_", "."))
+    add_candidate(file_name.replace(" ", "."))
+    add_candidate(file_name.replace("_", "-"))
+    add_candidate(file_name.replace(" ", "-"))
+
+    return candidates
+
+
 def normalize_token(value):
     return (value or "").strip().lower()
 
@@ -203,13 +227,19 @@ def matches_request(
     logged_file_name = get_filename_from_url(details["url"])
     expected_name_token = normalize_token(expected_name_token)
     exact_url_match = bool(expected_url and logged_url == expected_url)
+    dir_prefix_candidates = get_expected_dir_prefix_candidates(expected_file_name)
 
     if expected_file_name:
         if logged_file_name != expected_file_name:
             return False
 
-    if expected_dir_prefix and not log_dir_name.startswith(expected_dir_prefix):
-        return False
+    if expected_dir_prefix:
+        log_dir_name_lower = log_dir_name.lower()
+        if dir_prefix_candidates:
+          if not any(log_dir_name_lower.startswith(candidate) for candidate in dir_prefix_candidates):
+              return False
+        elif not log_dir_name_lower.startswith(expected_dir_prefix.lower()):
+            return False
 
     if expected_name_token:
         token_matches = (
@@ -240,8 +270,13 @@ def matches_dir_request(dir_path, expected_dir_prefix, expected_name_token):
     expected_dir_prefix = (expected_dir_prefix or "").lower()
     expected_name_token = normalize_token(expected_name_token)
 
-    if expected_dir_prefix and dir_name.startswith(expected_dir_prefix):
-        return True
+    if expected_dir_prefix:
+        prefix_candidates = get_expected_dir_prefix_candidates(expected_dir_prefix)
+        if prefix_candidates:
+            if any(dir_name.startswith(candidate) for candidate in prefix_candidates):
+                return True
+        elif dir_name.startswith(expected_dir_prefix):
+            return True
 
     if expected_name_token and expected_name_token in dir_name:
         return True
