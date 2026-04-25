@@ -17,7 +17,11 @@
   const WATCH_TIMEOUT_MS = 90000;
   const clickedLabels = new Set();
   const clickedSubsourceLinks = new Set();
+  const openedSubsourceUrls = new Set();
   let watcherStarted = false;
+  let observerStarted = false;
+  let routeWatcherStarted = false;
+  let currentRouteKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
   function getDomainConfig() {
     const host = window.location.hostname.toLowerCase();
@@ -212,10 +216,63 @@
       return;
     }
 
+    if (openedSubsourceUrls.has(url)) {
+      return;
+    }
+
+    openedSubsourceUrls.add(url);
     chrome.runtime.sendMessage({
       type: "open-new-tab",
       url
     });
+  }
+
+  function resetPageState() {
+    clickedLabels.clear();
+    clickedSubsourceLinks.clear();
+    openedSubsourceUrls.clear();
+    watcherStarted = false;
+    document.querySelectorAll(`[${CLICK_MARK_ATTR}="1"]`).forEach((element) => {
+      element.removeAttribute(CLICK_MARK_ATTR);
+    });
+  }
+
+  function handleRouteChange() {
+    const nextRouteKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextRouteKey === currentRouteKey) {
+      return;
+    }
+
+    currentRouteKey = nextRouteKey;
+    resetPageState();
+    window.setTimeout(() => {
+      clickNextTarget();
+    }, 50);
+  }
+
+  function startRouteWatcher() {
+    if (routeWatcherStarted || !isSubsourceHost()) {
+      return;
+    }
+
+    routeWatcherStarted = true;
+
+    const originalPushState = history.pushState;
+    history.pushState = function (...args) {
+      const result = originalPushState.apply(this, args);
+      handleRouteChange();
+      return result;
+    };
+
+    const originalReplaceState = history.replaceState;
+    history.replaceState = function (...args) {
+      const result = originalReplaceState.apply(this, args);
+      handleRouteChange();
+      return result;
+    };
+
+    window.addEventListener("popstate", handleRouteChange);
+    window.setInterval(handleRouteChange, 500);
   }
 
   function clickSubsourceTableLinks() {
@@ -322,6 +379,12 @@
   }
 
   function startWatching() {
+    if (observerStarted) {
+      clickNextTarget();
+      return;
+    }
+
+    observerStarted = true;
     clickNextTarget();
 
     const observer = new MutationObserver(() => {
@@ -340,7 +403,8 @@
     }, WATCH_TIMEOUT_MS);
   }
 
-  if (document.readyState === "complete") {
+  startRouteWatcher();
+  if (document.readyState === "complete" || document.readyState === "interactive") {
     startWatching();
   } else {
     window.addEventListener("load", startWatching, { once: true });

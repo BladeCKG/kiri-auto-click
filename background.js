@@ -30,7 +30,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id;
 
   if (message && message.type === "open-new-tab" && typeof message.url === "string") {
-    chrome.tabs.create({ url: message.url })
+    chrome.tabs.create({ url: message.url, active: false })
       .then(() => {
         sendResponse({ ok: true });
       })
