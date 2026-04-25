@@ -14,6 +14,7 @@ async function watchIdmStart(tabId, payload) {
     element_url: payload.elementUrl,
     expected_file_name: payload.expectedFileName,
     expected_dir_prefix: payload.expectedDirPrefix,
+    expected_name_token: payload.expectedNameToken,
     triggered_at: payload.triggeredAt,
     timeout_ms: payload.timeoutMs
   });

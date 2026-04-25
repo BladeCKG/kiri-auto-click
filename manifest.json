@@ -16,7 +16,11 @@
         "*://thenkiri.com/*",
         "*://*.thenkiri.com/*",
         "*://downloadwella.com/*",
-        "*://*.downloadwella.com/*"
+        "*://*.downloadwella.com/*",
+        "*://source.net/*",
+        "*://*.source.net/*",
+        "*://subsource.net/*",
+        "*://*.subsource.net/*"
       ],
       "js": [
         "content.js"
@@ -28,6 +32,10 @@
     "*://thenkiri.com/*",
     "*://*.thenkiri.com/*",
     "*://downloadwella.com/*",
-    "*://*.downloadwella.com/*"
+    "*://*.downloadwella.com/*",
+    "*://source.net/*",
+    "*://*.source.net/*",
+    "*://subsource.net/*",
+    "*://*.subsource.net/*"
   ]
 }

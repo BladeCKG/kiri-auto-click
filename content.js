@@ -1,12 +1,33 @@
 (() => {
-  const TARGET_LABELS = [
-    "download movie",
-    "create download link",
-    "start download"
+  const DOMAIN_TARGETS = [
+    {
+      domains: ["source.net", "subsource.net"],
+      labels: ["download english subtitle", "download korean subtitle"],
+      watchOnClick: true,
+      tokenFromSubtitlePath: true
+    },
+    {
+      domains: ["thenkiri.com", "downloadwella.com"],
+      labels: ["download movie", "create download link", "start download"],
+      watchOnClick: false,
+      tokenFromSubtitlePath: false
+    }
   ];
   const WATCH_TIMEOUT_MS = 90000;
   const clickedLabels = new Set();
   let watcherStarted = false;
+
+  function getDomainConfig() {
+    const host = window.location.hostname.toLowerCase();
+
+    for (const config of DOMAIN_TARGETS) {
+      if (config.domains.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+        return config;
+      }
+    }
+
+    return null;
+  }
 
   function normalizeText(value) {
     return (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -71,6 +92,32 @@
     return fileName.slice(0, 20);
   }
 
+  function looksLikeOpaqueDownloadToken(value) {
+    return typeof value === "string" && /^[a-f0-9]{24,}$/i.test(value);
+  }
+
+  function getSubtitleToken() {
+    try {
+      const parsed = new URL(window.location.href);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const subtitleIndex = parts.indexOf("subtitle");
+      if (subtitleIndex === -1 || subtitleIndex + 3 >= parts.length) {
+        return null;
+      }
+
+      const slug = decodeURIComponent(parts[subtitleIndex + 1]).toLowerCase();
+      const language = decodeURIComponent(parts[subtitleIndex + 2]).toLowerCase();
+      const subtitleId = decodeURIComponent(parts[subtitleIndex + 3]).toLowerCase();
+      return `${slug}_${language}_${subtitleId}`;
+    } catch {
+      return null;
+    }
+  }
+
+  function hasConcreteFileName(fileName) {
+    return typeof fileName === "string" && /\.[a-z0-9]{2,5}$/i.test(fileName);
+  }
+
   function isClickable(element) {
     if (!(element instanceof HTMLElement)) {
       return false;
@@ -118,8 +165,18 @@
       return;
     }
 
+    const config = getDomainConfig();
     const elementUrl = getElementUrl(target.element);
-    const fileName = getFileNameFromUrl(elementUrl);
+    const rawFileName = getFileNameFromUrl(elementUrl);
+    const subtitleUsesApiToken = config && config.tokenFromSubtitlePath && looksLikeOpaqueDownloadToken(rawFileName);
+    const isSubtitleFlow = config && config.tokenFromSubtitlePath;
+    const fileName = isSubtitleFlow ? null : rawFileName;
+    const expectedDirPrefix = subtitleUsesApiToken
+      ? getExpectedDirPrefix(rawFileName)
+      : getExpectedDirPrefix(fileName);
+    const expectedNameToken = config && config.tokenFromSubtitlePath && !subtitleUsesApiToken
+      ? getSubtitleToken()
+      : null;
 
     watcherStarted = true;
     chrome.runtime.sendMessage({
@@ -127,14 +184,20 @@
       pageUrl: window.location.href,
       elementUrl,
       expectedFileName: fileName,
-      expectedDirPrefix: getExpectedDirPrefix(fileName),
+      expectedDirPrefix,
+      expectedNameToken,
       triggeredAt: Date.now(),
       timeoutMs: WATCH_TIMEOUT_MS
     });
   }
 
   function clickNextTarget() {
-    for (const targetLabel of TARGET_LABELS) {
+    const config = getDomainConfig();
+    if (!config) {
+      return false;
+    }
+
+    for (const targetLabel of config.labels) {
       if (clickedLabels.has(targetLabel)) {
         continue;
       }
@@ -145,11 +208,12 @@
       }
 
       clickedLabels.add(targetLabel);
-      target.element.click();
 
-      if (targetLabel === "start download") {
+      if (config.watchOnClick || targetLabel === "start download") {
         notifyStartDownload(target);
       }
+
+      target.element.click();
 
       return true;
     }

@@ -66,6 +66,10 @@ def get_expected_dir_prefix(file_name):
     return file_name[:20]
 
 
+def normalize_token(value):
+    return (value or "").strip().lower()
+
+
 def read_download_manager_value(name):
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\DownloadManager") as key:
@@ -141,6 +145,25 @@ def snapshot_logs(root):
     return snapshot
 
 
+def snapshot_dirs(root):
+    snapshot = {}
+    try:
+        for path in root.iterdir():
+            if not path.is_dir():
+                continue
+
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+
+            snapshot[str(path)] = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return snapshot
+
+    return snapshot
+
+
 def parse_log_details(path):
     try:
         with path.open("r", encoding="utf-8", errors="ignore") as handle:
@@ -162,32 +185,65 @@ def parse_log_details(path):
     return details
 
 
-def matches_request(details, page_url, element_url, expected_file_name, expected_dir_prefix, log_path):
+def matches_request(
+    details,
+    page_url,
+    element_url,
+    expected_file_name,
+    expected_dir_prefix,
+    expected_name_token,
+    log_path,
+):
     if not details:
         return False
 
     log_dir_name = log_path.parent.name
     expected_url = normalize_url(element_url)
     logged_url = normalize_url(details["url"])
-
-    if expected_url and logged_url != expected_url:
-        return False
+    logged_file_name = get_filename_from_url(details["url"])
+    expected_name_token = normalize_token(expected_name_token)
+    exact_url_match = bool(expected_url and logged_url == expected_url)
 
     if expected_file_name:
-        logged_file_name = get_filename_from_url(details["url"])
         if logged_file_name != expected_file_name:
             return False
 
     if expected_dir_prefix and not log_dir_name.startswith(expected_dir_prefix):
         return False
 
+    if expected_name_token:
+        token_matches = (
+            expected_name_token in logged_file_name.lower()
+            or expected_name_token in log_dir_name.lower()
+            or expected_name_token in details["owp"].lower()
+        )
+        if not token_matches:
+            return False
+
     if page_url and details["owp"] and details["owp"] != page_url:
         return False
 
-    if expected_url:
+    if exact_url_match:
         return True
 
-    if page_url and details["owp"] == page_url and expected_dir_prefix and log_dir_name.startswith(expected_dir_prefix):
+    if page_url and details["owp"] == page_url:
+        if expected_dir_prefix and log_dir_name.startswith(expected_dir_prefix):
+            return True
+        if expected_name_token:
+            return True
+
+    return False
+
+
+def matches_dir_request(dir_path, expected_dir_prefix, expected_name_token):
+    dir_name = dir_path.name.lower()
+    expected_dir_prefix = (expected_dir_prefix or "").lower()
+    expected_name_token = normalize_token(expected_name_token)
+
+    if expected_dir_prefix and dir_name.startswith(expected_dir_prefix):
+        return True
+
+    if expected_name_token and expected_name_token in dir_name:
         return True
 
     return False
@@ -199,18 +255,44 @@ def watch_for_download(message):
     element_url = normalize_url(message.get("element_url"))
     expected_file_name = message.get("expected_file_name") or get_filename_from_url(element_url)
     expected_dir_prefix = message.get("expected_dir_prefix") or get_expected_dir_prefix(expected_file_name)
+    expected_name_token = normalize_token(message.get("expected_name_token"))
     triggered_at = int(message.get("triggered_at") or int(time.time() * 1000))
     timeout_ms = int(message.get("timeout_ms") or DEFAULT_TIMEOUT_MS)
     deadline = time.time() + (timeout_ms / 1000)
     min_mtime_ns = max(0, (triggered_at - 1500) * 1_000_000)
     known_logs = {}
+    known_dirs = {}
     for root in roots:
         known_logs.update(snapshot_logs(root))
+        known_dirs.update(snapshot_dirs(root))
 
     while time.time() < deadline:
         current_logs = {}
+        current_dirs = {}
         for root in roots:
             current_logs.update(snapshot_logs(root))
+            current_dirs.update(snapshot_dirs(root))
+
+        for path_text, state in current_dirs.items():
+            previous_state = known_dirs.get(path_text)
+            if previous_state == state:
+                continue
+
+            known_dirs[path_text] = state
+            mtime_ns, _size = state
+            if mtime_ns < min_mtime_ns:
+                continue
+
+            dir_path = Path(path_text)
+            if matches_dir_request(dir_path, expected_dir_prefix, expected_name_token):
+                return {
+                    "started": True,
+                    "matched_dir": dir_path.name,
+                    "matched_by": "directory",
+                    "expected_file_name": expected_file_name,
+                    "expected_name_token": expected_name_token,
+                }
+
         for path_text, state in current_logs.items():
             previous_state = known_logs.get(path_text)
             if previous_state == state:
@@ -229,6 +311,7 @@ def watch_for_download(message):
                 element_url,
                 expected_file_name,
                 expected_dir_prefix,
+                expected_name_token,
                 log_path,
             ):
                 return {
@@ -238,6 +321,7 @@ def watch_for_download(message):
                     "page_url": details["owp"],
                     "download_url": details["url"],
                     "expected_file_name": expected_file_name,
+                    "expected_name_token": expected_name_token,
                 }
 
         time.sleep(SCAN_INTERVAL_SECONDS)
