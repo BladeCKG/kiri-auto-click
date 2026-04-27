@@ -350,6 +350,7 @@
       expectedFileName,
       expectedDirPrefix,
       expectedNameToken,
+      allowDirectoryMatch: isSubtitleSite,
       triggeredAt: Date.now(),
       timeoutMs: WATCH_TIMEOUT_MS
     });

@@ -291,6 +291,7 @@ def watch_for_download(message):
     expected_file_name = message.get("expected_file_name") or get_filename_from_url(element_url)
     expected_dir_prefix = message.get("expected_dir_prefix") or get_expected_dir_prefix(expected_file_name)
     expected_name_token = normalize_token(message.get("expected_name_token"))
+    allow_directory_match = bool(message.get("allow_directory_match"))
     triggered_at = int(message.get("triggered_at") or int(time.time() * 1000))
     timeout_ms = int(message.get("timeout_ms") or DEFAULT_TIMEOUT_MS)
     deadline = time.time() + (timeout_ms / 1000)
@@ -308,25 +309,26 @@ def watch_for_download(message):
             current_logs.update(snapshot_logs(root))
             current_dirs.update(snapshot_dirs(root))
 
-        for path_text, state in current_dirs.items():
-            previous_state = known_dirs.get(path_text)
-            if previous_state == state:
-                continue
+        if allow_directory_match:
+            for path_text, state in current_dirs.items():
+                previous_state = known_dirs.get(path_text)
+                if previous_state == state:
+                    continue
 
-            known_dirs[path_text] = state
-            mtime_ns, _size = state
-            if mtime_ns < min_mtime_ns:
-                continue
+                known_dirs[path_text] = state
+                mtime_ns, _size = state
+                if mtime_ns < min_mtime_ns:
+                    continue
 
-            dir_path = Path(path_text)
-            if matches_dir_request(dir_path, expected_dir_prefix, expected_name_token):
-                return {
-                    "started": True,
-                    "matched_dir": dir_path.name,
-                    "matched_by": "directory",
-                    "expected_file_name": expected_file_name,
-                    "expected_name_token": expected_name_token,
-                }
+                dir_path = Path(path_text)
+                if matches_dir_request(dir_path, expected_dir_prefix, expected_name_token):
+                    return {
+                        "started": True,
+                        "matched_dir": dir_path.name,
+                        "matched_by": "directory",
+                        "expected_file_name": expected_file_name,
+                        "expected_name_token": expected_name_token,
+                    }
 
         for path_text, state in current_logs.items():
             previous_state = known_logs.get(path_text)
