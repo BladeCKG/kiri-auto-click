@@ -1,0 +1,43 @@
+{
+  "movieSites": [
+    {
+      "domains": ["thenkiri.com", "downloadwella.com", "wetafiles.com"],
+      "labels": ["download movie", "create download link", "start download"]
+    }
+  ],
+  "subtitleSites": [
+    {
+      "id": "subsource",
+      "domains": ["subsource.net"],
+      "listingPrefixes": ["/subtitles/"],
+      "detailPrefixes": ["/subtitle/"],
+      "detailLabels": ["download english subtitle", "download korean subtitle"],
+      "listingParser": "row_second_cell",
+      "useRouteHrefFilter": true,
+      "routeIdMode": "token_segments"
+    },
+    {
+      "id": "subscene",
+      "domains": ["sub-scene.com"],
+      "listingPrefixes": ["/subscene/"],
+      "detailPrefixes": ["/subtitle/"],
+      "detailLabels": ["download korean subtitle", "download english subtitle", "download subtitle"],
+      "listingParser": "subscene_table",
+      "useRouteHrefFilter": false,
+      "routeIdMode": "numeric_after_subtitle"
+    },
+    {
+      "id": "ytssubs",
+      "domains": ["yts-subs.com"],
+      "listingPrefixes": ["/movie-imdb/"],
+      "detailPrefixes": ["/subtitles/"],
+      "detailLabels": ["download korean subtitle", "download english subtitle", "download subtitle"],
+      "listingParser": "ytssubs_table",
+      "useRouteHrefFilter": false,
+      "routeIdMode": "token_segments",
+      "subtitleFileNameMode": "route_slug_zip",
+      "subtitleDirPrefixMode": "route_slug_prefix",
+      "subtitleNameTokenMode": "none"
+    }
+  ]
+}

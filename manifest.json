@@ -10,6 +10,16 @@
   "background": {
     "service_worker": "background.js"
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sites.json"
+      ],
+      "matches": [
+        "*://*/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -19,8 +29,12 @@
         "*://*.downloadwella.com/*",
         "*://wetafiles.com/*",
         "*://*.wetafiles.com/*",
+        "*://sub-scene.com/*",
+        "*://*.sub-scene.com/*",
         "*://subsource.net/*",
-        "*://*.subsource.net/*"
+        "*://*.subsource.net/*",
+        "*://yts-subs.com/*",
+        "*://*.yts-subs.com/*"
       ],
       "js": [
         "content.js"
@@ -35,7 +49,11 @@
     "*://*.downloadwella.com/*",
     "*://wetafiles.com/*",
     "*://*.wetafiles.com/*",
+    "*://sub-scene.com/*",
+    "*://*.sub-scene.com/*",
     "*://subsource.net/*",
-    "*://*.subsource.net/*"
+    "*://*.subsource.net/*",
+    "*://yts-subs.com/*",
+    "*://*.yts-subs.com/*"
   ]
 }
