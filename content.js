@@ -18,7 +18,9 @@
       watcherStarted: false,
       listingScrollTask: null,
       listingScrollCompleted: false,
-      listingSawCandidates: false
+      listingSawCandidates: false,
+      stopListingScroll: false,
+      listingScrolledBackToTop: false
     };
   }
 
@@ -523,6 +525,10 @@
       openedAny = true;
     }
 
+    if (openedAny) {
+      state.stopListingScroll = true;
+    }
+
     return openedAny;
   }
 
@@ -530,7 +536,12 @@
     let stablePasses = 0;
     let previousHeight = -1;
 
-    while (stablePasses < 4 && getRouteKey() === currentRouteKey && isSubtitleListingPage()) {
+    while (
+      stablePasses < 4 &&
+      !state.stopListingScroll &&
+      getRouteKey() === currentRouteKey &&
+      isSubtitleListingPage()
+    ) {
       const currentHeight = Math.max(
         document.documentElement.scrollHeight,
         document.body ? document.body.scrollHeight : 0
@@ -558,6 +569,11 @@
       previousHeight = nextHeight;
       clickSubtitleListingTargets(getCurrentSubtitleSite());
     }
+
+    if (state.stopListingScroll && !state.listingScrolledBackToTop && getRouteKey() === currentRouteKey) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      state.listingScrolledBackToTop = true;
+    }
   }
 
   function ensureSubtitleListingFlow(site) {
@@ -567,7 +583,7 @@
 
     clickSubtitleListingTargets(site);
 
-    if (state.listingScrollCompleted) {
+    if (state.listingScrollCompleted || state.stopListingScroll) {
       return true;
     }
 
@@ -578,7 +594,7 @@
           if (routeKeyAtStart === currentRouteKey) {
             state.listingScrollTask = null;
             const openedAfterScroll = clickSubtitleListingTargets(site);
-            if (state.listingSawCandidates || openedAfterScroll) {
+            if (state.stopListingScroll || state.listingSawCandidates || openedAfterScroll) {
               state.listingScrollCompleted = true;
             }
           }
