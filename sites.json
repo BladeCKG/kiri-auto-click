@@ -12,7 +12,7 @@
       "listingPrefixes": ["/subtitles/"],
       "detailPrefixes": ["/subtitle/"],
       "detailLabels": ["download english subtitle", "download korean subtitle"],
-      "listingParser": "row_second_cell",
+      "listingParser": "subsource_table",
       "useRouteHrefFilter": true,
       "routeIdMode": "token_segments"
     },

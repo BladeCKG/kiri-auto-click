@@ -16,7 +16,9 @@
       openedSubtitleUrls: new Set(),
       subtitleEnglishOpened: false,
       watcherStarted: false,
-      listingScrollTask: null
+      listingScrollTask: null,
+      listingScrollCompleted: false,
+      listingSawCandidates: false
     };
   }
 
@@ -368,7 +370,7 @@
       return [];
     }
 
-    if (site.listingParser === "row_second_cell") {
+    if (site.listingParser === "subsource_table") {
       const rows = document.querySelectorAll("table tr, tbody tr, tr");
       const candidates = [];
 
@@ -384,12 +386,12 @@
         }
 
         const cellLabel = normalizeText(secondCell.innerText || secondCell.textContent);
-        const language = cellLabel.includes("korean") ? "korean" : cellLabel.includes("english") ? "english" : "";
-        if (!language) {
+        const desiredLanguage = cellLabel.includes("korean") ? "korean" : cellLabel.includes("english") ? "english" : "";
+        if (!desiredLanguage) {
           continue;
         }
 
-        const links = row.querySelectorAll("a");
+        const links = row.querySelectorAll("a[href]");
         for (const link of links) {
           if (!(link instanceof HTMLElement) || !isClickable(link)) {
             continue;
@@ -405,11 +407,15 @@
             if (!site.detailPrefixes.some((prefix) => hrefPath.startsWith(prefix))) {
               continue;
             }
+
+            if (!hrefPath.includes(`/${desiredLanguage}/`)) {
+              continue;
+            }
           } catch {
             continue;
           }
 
-          candidates.push({ language, href, element: link });
+          candidates.push({ language: desiredLanguage, href, element: link });
           break;
         }
       }
@@ -490,6 +496,9 @@
 
   function clickSubtitleListingTargets(site) {
     const candidates = buildListingCandidates(site);
+    if (candidates.length > 0) {
+      state.listingSawCandidates = true;
+    }
     let openedAny = false;
 
     for (const candidate of candidates) {
@@ -558,13 +567,20 @@
 
     clickSubtitleListingTargets(site);
 
+    if (state.listingScrollCompleted) {
+      return true;
+    }
+
     if (!state.listingScrollTask) {
       const routeKeyAtStart = currentRouteKey;
       state.listingScrollTask = scrollListingToBottom()
         .finally(() => {
           if (routeKeyAtStart === currentRouteKey) {
             state.listingScrollTask = null;
-            clickSubtitleListingTargets(site);
+            const openedAfterScroll = clickSubtitleListingTargets(site);
+            if (state.listingSawCandidates || openedAfterScroll) {
+              state.listingScrollCompleted = true;
+            }
           }
         });
     }
