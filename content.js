@@ -193,9 +193,22 @@
         const head = prefixParts[0];
         const index = parts.indexOf(head);
         if (index !== -1 && index + 1 < parts.length) {
-          const slug = decodeURIComponent(parts[index + 1]).toLowerCase();
-          const trimmed = slug.replace(/-\d+$/, "");
-          return Array.from(new Set([slug, trimmed].filter(Boolean)));
+          const tailParts = parts.slice(index + 1).map((part) => decodeURIComponent(part).toLowerCase());
+          const firstSlug = tailParts[0] || "";
+          const slashJoined = tailParts.join("/");
+          const dashJoined = tailParts.join("-");
+          const trimmedFirst = firstSlug.replace(/-\d+$/, "");
+          const trimmedDashJoined = dashJoined.replace(/-\d+$/, "");
+
+          return Array.from(
+            new Set([
+              firstSlug,
+              trimmedFirst,
+              slashJoined,
+              dashJoined,
+              trimmedDashJoined
+            ].filter(Boolean))
+          );
         }
       }
     } catch {
