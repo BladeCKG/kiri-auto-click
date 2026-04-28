@@ -5,10 +5,14 @@
   "description": "Clicks matching download buttons and closes the tab after IDM starts the matching download.",
   "permissions": [
     "tabs",
-    "nativeMessaging"
+    "nativeMessaging",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Kiri Auto Click"
   },
   "web_accessible_resources": [
     {

@@ -4,6 +4,7 @@
   const WATCH_TIMEOUT_MS = 90000;
 
   let config = null;
+  let extensionEnabled = true;
   let observerStarted = false;
   let routeWatcherStarted = false;
   let currentRouteKey = getRouteKey();
@@ -29,6 +30,13 @@
     document.querySelectorAll(`[${CLICK_MARK_ATTR}="1"]`).forEach((element) => {
       element.removeAttribute(CLICK_MARK_ATTR);
     });
+  }
+
+  function syncEnabledState(enabled) {
+    extensionEnabled = enabled !== false;
+    if (!extensionEnabled) {
+      resetRouteState();
+    }
   }
 
   function getRouteKey() {
@@ -539,6 +547,7 @@
 
     while (
       stablePasses < 4 &&
+      extensionEnabled &&
       !state.stopListingScroll &&
       getRouteKey() === currentRouteKey &&
       isSubtitleListingPage()
@@ -595,8 +604,9 @@
           if (routeKeyAtStart === currentRouteKey) {
             state.listingScrollTask = null;
             const openedAfterScroll = clickSubtitleListingTargets(site);
-            if (state.stopListingScroll || state.listingSawCandidates || openedAfterScroll) {
-              state.listingScrollCompleted = true;
+            state.listingScrollCompleted = true;
+            if (openedAfterScroll) {
+              state.stopListingScroll = true;
             }
           }
         });
@@ -676,6 +686,10 @@
   }
 
   function processPage() {
+    if (!extensionEnabled) {
+      return false;
+    }
+
     const subtitleSite = getCurrentSubtitleSite();
     if (ensureSubtitleListingFlow(subtitleSite)) {
       return true;
@@ -758,7 +772,24 @@
     return response.json();
   }
 
+  async function loadEnabledState() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "get-extension-enabled" });
+      syncEnabledState(response?.enabled);
+    } catch {
+      syncEnabledState(true);
+    }
+  }
+
   config = await loadConfig();
+  await loadEnabledState();
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !Object.prototype.hasOwnProperty.call(changes, "extensionEnabled")) {
+      return;
+    }
+
+    syncEnabledState(changes.extensionEnabled.newValue);
+  });
   startRouteWatcher();
   window.addEventListener("pageshow", () => {
     processPage();
