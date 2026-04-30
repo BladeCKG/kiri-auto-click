@@ -457,6 +457,13 @@
     return null;
   }
 
+  function hasCollectedRequiredSubtitleTabs() {
+    return (
+      state.subtitleKoreanOpenedCount >= MAX_KOREAN_SUBTITLE_TABS &&
+      state.subtitleEnglishOpened
+    );
+  }
+
   function notifyDownload(target, site) {
     if (state.watcherStarted) {
       return;
@@ -676,6 +683,10 @@
       openedAny = true;
     }
 
+    if (hasCollectedRequiredSubtitleTabs()) {
+      state.stopListingScroll = true;
+    }
+
     return openedAny;
   }
 
@@ -686,6 +697,7 @@
     while (
       stablePasses < LISTING_SCROLL_STABLE_PASSES &&
       extensionEnabled &&
+      !state.stopListingScroll &&
       getRouteKey() === currentRouteKey &&
       isSubtitleListingPage()
     ) {
