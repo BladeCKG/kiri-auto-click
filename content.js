@@ -1,5 +1,6 @@
 (async () => {
   const CLICK_MARK_ATTR = "data-kiri-auto-clicked";
+  const ALL_EPS_BUTTON_ID = "kiri-all-eps-button";
   const CONFIG_URL = chrome.runtime.getURL("sites.json");
   const WATCH_TIMEOUT_MS = 90000;
 
@@ -21,7 +22,8 @@
       listingScrollCompleted: false,
       listingSawCandidates: false,
       stopListingScroll: false,
-      listingScrolledBackToTop: false
+      listingScrolledBackToTop: false,
+      episodeCollectorMode: null
     };
   }
 
@@ -37,6 +39,7 @@
     if (!extensionEnabled) {
       resetRouteState();
     }
+    updateEpisodeCollectorButton();
   }
 
   function getRouteKey() {
@@ -220,6 +223,66 @@
     }
 
     return urls;
+  }
+
+  function isEpisodeCollectorListingPage() {
+    if (!isEpisodeCollectorSite()) {
+      return false;
+    }
+
+    if (typeof state.episodeCollectorMode === "boolean") {
+      return state.episodeCollectorMode;
+    }
+
+    state.episodeCollectorMode = collectAllEpisodeLinks().length > 0;
+    return state.episodeCollectorMode;
+  }
+
+  function updateEpisodeCollectorButton() {
+    const existing = document.getElementById(ALL_EPS_BUTTON_ID);
+    const shouldShow = extensionEnabled && isEpisodeCollectorSite();
+
+    if (!shouldShow) {
+      existing?.remove();
+      return;
+    }
+
+    const button = existing || document.createElement("button");
+    button.id = ALL_EPS_BUTTON_ID;
+    button.type = "button";
+    button.textContent = "All eps";
+    button.disabled = false;
+    button.style.position = "fixed";
+    button.style.right = "20px";
+    button.style.bottom = "20px";
+    button.style.zIndex = "2147483647";
+    button.style.padding = "12px 16px";
+    button.style.border = "0";
+    button.style.borderRadius = "999px";
+    button.style.background = "#0f766e";
+    button.style.color = "#ffffff";
+    button.style.font = "600 14px system-ui, sans-serif";
+    button.style.cursor = "pointer";
+    button.style.boxShadow = "0 10px 25px rgba(0,0,0,0.25)";
+
+    if (!existing) {
+      button.addEventListener("click", () => {
+        if (!extensionEnabled) {
+          return;
+        }
+
+        const urls = collectAllEpisodeLinks();
+        if (urls.length === 0) {
+          return;
+        }
+
+        chrome.runtime.sendMessage({
+          type: "open-multiple-tabs",
+          urls
+        });
+      });
+      document.documentElement.appendChild(button);
+    }
   }
 
   function getCurrentListingSlugCandidates(site) {
@@ -744,6 +807,10 @@
       return false;
     }
 
+    if (isEpisodeCollectorListingPage()) {
+      return false;
+    }
+
     const subtitleSite = getCurrentSubtitleSite();
     if (ensureSubtitleListingFlow(subtitleSite)) {
       return true;
@@ -764,6 +831,7 @@
 
     currentRouteKey = nextRouteKey;
     resetRouteState();
+    updateEpisodeCollectorButton();
     window.requestAnimationFrame(() => {
       processPage();
     });
@@ -804,6 +872,10 @@
     processPage();
 
     const observer = new MutationObserver(() => {
+      if (isEpisodeCollectorListingPage()) {
+        return;
+      }
+
       processPage();
     });
 
@@ -865,6 +937,8 @@
       processPage();
     }
   });
+
+  updateEpisodeCollectorButton();
 
   if (document.readyState === "complete" || document.readyState === "interactive") {
     startWatching();
