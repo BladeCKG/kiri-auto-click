@@ -717,7 +717,7 @@
       clickSubtitleListingTargets(getCurrentSubtitleSite());
     }
 
-    if (state.stopListingScroll && !state.listingScrolledBackToTop && getRouteKey() === currentRouteKey) {
+    if (!state.listingScrolledBackToTop && getRouteKey() === currentRouteKey) {
       window.scrollTo({ top: 0, behavior: "auto" });
       state.listingScrolledBackToTop = true;
     }
