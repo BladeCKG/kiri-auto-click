@@ -3,6 +3,16 @@
   const ALL_EPS_BUTTON_ID = "kiri-all-eps-button";
   const CONFIG_URL = chrome.runtime.getURL("sites.json");
   const WATCH_TIMEOUT_MS = 90000;
+  const SUBTITLE_LANGUAGE_KOREAN = "korean";
+  const SUBTITLE_LANGUAGE_ENGLISH = "english";
+  const MAX_KOREAN_SUBTITLE_TABS = 3;
+  const LISTING_SCROLL_STABLE_PASSES = 4;
+  const LISTING_SCROLL_DELAY_MS = 400;
+  const ALL_EPS_BUTTON_LABEL = "All eps";
+  const ALL_EPS_BUTTON_RIGHT = "20px";
+  const ALL_EPS_BUTTON_BOTTOM = "20px";
+  const ALL_EPS_BUTTON_Z_INDEX = "2147483647";
+  const ALL_EPS_BUTTON_PADDING = "12px 16px";
 
   let config = null;
   let extensionEnabled = true;
@@ -17,6 +27,7 @@
       subtitleClickedKeys: new Set(),
       openedSubtitleUrls: new Set(),
       subtitleEnglishOpened: false,
+      subtitleKoreanOpenedCount: 0,
       watcherStarted: false,
       listingScrollTask: null,
       listingScrollCompleted: false,
@@ -130,11 +141,11 @@
 
   function getLanguageFromText(value) {
     const label = normalizeText(value);
-    if (label.includes("korean")) {
-      return "korean";
+    if (label.includes(SUBTITLE_LANGUAGE_KOREAN)) {
+      return SUBTITLE_LANGUAGE_KOREAN;
     }
-    if (label.includes("english")) {
-      return "english";
+    if (label.includes(SUBTITLE_LANGUAGE_ENGLISH)) {
+      return SUBTITLE_LANGUAGE_ENGLISH;
     }
     return "";
   }
@@ -250,13 +261,13 @@
     const button = existing || document.createElement("button");
     button.id = ALL_EPS_BUTTON_ID;
     button.type = "button";
-    button.textContent = "All eps";
+    button.textContent = ALL_EPS_BUTTON_LABEL;
     button.disabled = false;
     button.style.position = "fixed";
-    button.style.right = "20px";
-    button.style.bottom = "20px";
-    button.style.zIndex = "2147483647";
-    button.style.padding = "12px 16px";
+    button.style.right = ALL_EPS_BUTTON_RIGHT;
+    button.style.bottom = ALL_EPS_BUTTON_BOTTOM;
+    button.style.zIndex = ALL_EPS_BUTTON_Z_INDEX;
+    button.style.padding = ALL_EPS_BUTTON_PADDING;
     button.style.border = "0";
     button.style.borderRadius = "999px";
     button.style.background = "#0f766e";
@@ -514,7 +525,11 @@
         }
 
         const cellLabel = normalizeText(secondCell.innerText || secondCell.textContent);
-        const desiredLanguage = cellLabel.includes("korean") ? "korean" : cellLabel.includes("english") ? "english" : "";
+        const desiredLanguage = cellLabel.includes(SUBTITLE_LANGUAGE_KOREAN)
+          ? SUBTITLE_LANGUAGE_KOREAN
+          : cellLabel.includes(SUBTITLE_LANGUAGE_ENGLISH)
+            ? SUBTITLE_LANGUAGE_ENGLISH
+            : "";
         if (!desiredLanguage) {
           continue;
         }
@@ -638,21 +653,27 @@
         continue;
       }
 
-      if (candidate.language === "english" && state.subtitleEnglishOpened) {
+      if (
+        candidate.language === SUBTITLE_LANGUAGE_KOREAN &&
+        state.subtitleKoreanOpenedCount >= MAX_KOREAN_SUBTITLE_TABS
+      ) {
+        continue;
+      }
+
+      if (candidate.language === SUBTITLE_LANGUAGE_ENGLISH && state.subtitleEnglishOpened) {
         continue;
       }
 
       state.subtitleClickedKeys.add(key);
       candidate.element.setAttribute(CLICK_MARK_ATTR, "1");
       openUrlInNewTab(candidate.href);
-      if (candidate.language === "english") {
+      if (candidate.language === SUBTITLE_LANGUAGE_ENGLISH) {
         state.subtitleEnglishOpened = true;
       }
+      if (candidate.language === SUBTITLE_LANGUAGE_KOREAN) {
+        state.subtitleKoreanOpenedCount += 1;
+      }
       openedAny = true;
-    }
-
-    if (openedAny) {
-      state.stopListingScroll = true;
     }
 
     return openedAny;
@@ -663,9 +684,8 @@
     let previousHeight = -1;
 
     while (
-      stablePasses < 4 &&
+      stablePasses < LISTING_SCROLL_STABLE_PASSES &&
       extensionEnabled &&
-      !state.stopListingScroll &&
       getRouteKey() === currentRouteKey &&
       isSubtitleListingPage()
     ) {
@@ -677,7 +697,7 @@
       const alreadyAtBottom = window.scrollY >= maxScrollableY;
 
       window.scrollTo({ top: currentHeight, behavior: "auto" });
-      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      await new Promise((resolve) => window.setTimeout(resolve, LISTING_SCROLL_DELAY_MS));
 
       const nextHeight = Math.max(
         document.documentElement.scrollHeight,
@@ -710,7 +730,7 @@
 
     clickSubtitleListingTargets(site);
 
-    if (state.listingScrollCompleted || state.stopListingScroll) {
+    if (state.listingScrollCompleted) {
       return true;
     }
 
@@ -720,11 +740,8 @@
         .finally(() => {
           if (routeKeyAtStart === currentRouteKey) {
             state.listingScrollTask = null;
-            const openedAfterScroll = clickSubtitleListingTargets(site);
+            clickSubtitleListingTargets(site);
             state.listingScrollCompleted = true;
-            if (openedAfterScroll) {
-              state.stopListingScroll = true;
-            }
           }
         });
     }
