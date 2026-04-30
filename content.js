@@ -181,6 +181,47 @@
     return !!site && currentPathStartsWith(site.detailPrefixes);
   }
 
+  function isEpisodeCollectorSite() {
+    const host = window.location.hostname.toLowerCase();
+    return (
+      host === "thenkiri.com" ||
+      host.endsWith(".thenkiri.com") ||
+      host === "dramakey.com" ||
+      host.endsWith(".dramakey.com")
+    );
+  }
+
+  function collectAllEpisodeLinks() {
+    if (!isEpisodeCollectorSite()) {
+      return [];
+    }
+
+    const urls = [];
+    const seen = new Set();
+    const links = document.querySelectorAll("a[href]");
+
+    for (const link of links) {
+      if (!(link instanceof HTMLElement) || !isClickable(link)) {
+        continue;
+      }
+
+      const label = getElementLabel(link);
+      if (!label.includes("download episode")) {
+        continue;
+      }
+
+      const href = getElementUrl(link);
+      if (!href || seen.has(href)) {
+        continue;
+      }
+
+      seen.add(href);
+      urls.push(href);
+    }
+
+    return urls;
+  }
+
   function getCurrentListingSlugCandidates(site) {
     if (!site) {
       return [];
@@ -796,6 +837,17 @@
 
   config = await loadConfig();
   await loadEnabledState();
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== "collect-all-episode-links") {
+      return;
+    }
+
+    sendResponse({
+      ok: true,
+      urls: collectAllEpisodeLinks()
+    });
+    return true;
+  });
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local" || !Object.prototype.hasOwnProperty.call(changes, "extensionEnabled")) {
       return;

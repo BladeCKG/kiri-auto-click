@@ -6,7 +6,8 @@
   "permissions": [
     "tabs",
     "nativeMessaging",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "background": {
     "service_worker": "background.js"
@@ -29,6 +30,8 @@
       "matches": [
         "*://thenkiri.com/*",
         "*://*.thenkiri.com/*",
+        "*://dramakey.com/*",
+        "*://*.dramakey.com/*",
         "*://downloadwella.com/*",
         "*://*.downloadwella.com/*",
         "*://wetafiles.com/*",
@@ -49,6 +52,8 @@
   "host_permissions": [
     "*://thenkiri.com/*",
     "*://*.thenkiri.com/*",
+    "*://dramakey.com/*",
+    "*://*.dramakey.com/*",
     "*://downloadwella.com/*",
     "*://*.downloadwella.com/*",
     "*://wetafiles.com/*",
