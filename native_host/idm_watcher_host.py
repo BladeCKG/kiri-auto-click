@@ -66,6 +66,56 @@ def get_expected_dir_prefix(file_name):
     return file_name[:20]
 
 
+def normalize_filename_for_match(value):
+    value = (value or "").strip().lower()
+    if not value:
+        return ""
+
+    value = unquote(value)
+    for old, new in (
+        ("{", ""),
+        ("}", ""),
+        ("[", ""),
+        ("]", ""),
+        ("(", ""),
+        (")", ""),
+        (" ", "_"),
+        ("-20", "_"),
+        ("-", "_"),
+        (".", "_"),
+    ):
+        value = value.replace(old, new)
+
+    while "__" in value:
+        value = value.replace("__", "_")
+
+    return value.strip("_")
+
+
+def get_expected_file_name_candidates(file_name):
+    if not file_name:
+        return []
+
+    candidates = []
+
+    def add_candidate(value):
+        normalized = normalize_filename_for_match(value)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+    add_candidate(file_name)
+    add_candidate(file_name.replace("_", "-20"))
+    add_candidate(file_name.replace(" ", "-20"))
+    add_candidate(file_name.replace("_", "."))
+    add_candidate(file_name.replace(" ", "."))
+    add_candidate(file_name.replace("_", "-"))
+    add_candidate(file_name.replace(" ", "-"))
+    add_candidate(file_name.replace("{", "").replace("}", ""))
+    add_candidate(file_name.replace("{", "_").replace("}", "_"))
+
+    return candidates
+
+
 def get_expected_dir_prefix_candidates(file_name):
     if not file_name:
         return []
@@ -86,6 +136,11 @@ def get_expected_dir_prefix_candidates(file_name):
     add_candidate(file_name.replace(" ", "."))
     add_candidate(file_name.replace("_", "-"))
     add_candidate(file_name.replace(" ", "-"))
+    add_candidate(file_name.replace("{", "").replace("}", ""))
+    add_candidate(file_name.replace("{", "_").replace("}", "_"))
+    add_candidate(file_name.replace("{", "-7B").replace("}", "-7D"))
+    add_candidate(file_name.replace("{", "%7B").replace("}", "%7D"))
+    add_candidate(normalize_filename_for_match(file_name))
 
     return candidates
 
@@ -228,9 +283,14 @@ def matches_request(
     expected_name_token = normalize_token(expected_name_token)
     exact_url_match = bool(expected_url and logged_url == expected_url)
     dir_prefix_candidates = get_expected_dir_prefix_candidates(expected_file_name)
+    expected_file_name_candidates = get_expected_file_name_candidates(expected_file_name)
+    normalized_logged_file_name = normalize_filename_for_match(logged_file_name)
 
     if expected_file_name:
-        if logged_file_name != expected_file_name:
+        if expected_file_name_candidates:
+            if normalized_logged_file_name not in expected_file_name_candidates:
+                return False
+        elif logged_file_name != expected_file_name:
             return False
 
     if expected_dir_prefix:
